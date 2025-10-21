@@ -99,7 +99,11 @@ export default function DriverReserves() {
   }
 
   async function updateField(id: string, field: "location" | "available_time", value: string) {
-    let patch: any = {};
+    // now "available_time" is a plain text column; save as-is
+    const patch: any = { [field]: value || null };
+    const { error } = await supabase.from("drivers").update(patch).eq("id", id);
+    if (error) setErr(error.message);
+  };
     if (field === "available_time" && value) {
       try { patch[field] = new Date(value.replace(" ", "T")).toISOString(); }
       catch { patch[field] = value; }
@@ -177,10 +181,6 @@ export default function DriverReserves() {
                   <td style={{ padding: 12 }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       <button onClick={() => reservePrompt(d.id)} style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#111827', color: 'white' }}>Reserve…</button>
-                      <button onClick={() => addMinutes(d.id, 5)} style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #e5e7eb' }}>+5m</button>
-                      <button onClick={() => addMinutes(d.id, 15)} style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #e5e7eb' }}>+15m</button>
-                      <button onClick={() => addMinutes(d.id, 30)} style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #e5e7eb' }}>+30m</button>
-                      <button onClick={() => addMinutes(d.id, 60)} style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #e5e7eb' }}>+60m</button>
                       <button onClick={() => resetReserve(d.id)} style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#dc2626', color: 'white' }}>Reset</button>
                     </div>
                   </td>
@@ -195,12 +195,14 @@ export default function DriverReserves() {
 }
 
 /*
-Если не отображаются водители:
-1) Проверь правильность NEXT_PUBLIC_SUPABASE_URL и KEY в Vercel.
-2) В Supabase выполни:
-   alter table public.drivers enable row level security;
-   create policy if not exists "drivers anon read" on public.drivers for select using (true);
-   create policy if not exists "drivers anon write" on public.drivers for update using (true);
-3) Добавь данные:
-   insert into public.drivers (name) values ('Driver 1'),('Driver 2'),('Driver 3'),('Driver 4');
+If you still don't see drivers:
+1) Ensure URL & anon key match this project.
+2) Run these policies (SQL Editor):
+
+alter table public.drivers enable row level security;
+create policy if not exists "drivers anon read" on public.drivers for select using (true);
+create policy if not exists "drivers anon write" on public.drivers for update using (true);
+
+3) Seed 4 drivers if table is empty:
+insert into public.drivers (name) values ('Driver 1'),('Driver 2'),('Driver 3'),('Driver 4');
 */
