@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// 🔑 ENV (Vercel → Project Settings → Environment Variables)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
 const supabase = createClient(supabaseUrl, supabaseAnon);
@@ -10,8 +9,8 @@ type Driver = {
   id: string;
   name: string;
   location: string | null;
-  available_time: string | null; // ISO
-  reserve_until: string | null;  // ISO
+  available_time: string | null;
+  reserve_until: string | null;
   created_at?: string;
 };
 
@@ -29,13 +28,11 @@ export default function DriverReserves() {
   const [err, setErr] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
-  // local ticking for countdown label
   useEffect(() => {
     const id = setInterval(() => setTick((t) => (t + 1) % 100000), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // initial load
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -49,7 +46,6 @@ export default function DriverReserves() {
     })();
   }, []);
 
-  // realtime sync
   useEffect(() => {
     const channel = supabase
       .channel("drivers-rt")
@@ -66,13 +62,16 @@ export default function DriverReserves() {
             }
             const row = payload.new as Driver;
             const idx = next.findIndex((d) => d.id === row.id);
-            if (idx !== -1) next[idx] = row; else next.push(row);
+            if (idx !== -1) next[idx] = row;
+            else next.push(row);
             return next;
           });
         }
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function reservePrompt(id: string) {
@@ -89,100 +88,190 @@ export default function DriverReserves() {
     const now = new Date();
     const base = target.reserve_until ? new Date(target.reserve_until) : now;
     const until = new Date(Math.max(base.getTime(), now.getTime()) + minutes * 60_000);
-    const { error } = await supabase.from("drivers").update({ reserve_until: until.toISOString() }).eq("id", id);
+    const { error } = await supabase
+      .from("drivers")
+      .update({ reserve_until: until.toISOString() })
+      .eq("id", id);
     if (error) setErr(error.message);
   }
 
   async function resetReserve(id: string) {
-    const { error } = await supabase.from("drivers").update({ reserve_until: null }).eq("id", id);
+    const { error } = await supabase
+      .from("drivers")
+      .update({ reserve_until: null })
+      .eq("id", id);
     if (error) setErr(error.message);
   }
 
   async function updateField(
-  id: string,
-  field: "location" | "available_time",
-  value: string
-) {
-  // available_time теперь текст — сохраняем как есть
-  const patch: any = {};
-  patch[field] = value || null;
-
-  const { error } = await supabase
-    .from("drivers")
-    .update(patch)
-    .eq("id", id);
-
-  if (error) setErr(error.message);
-}
+    id: string,
+    field: "location" | "available_time",
+    value: string
+  ) {
+    const { error } = await supabase
+      .from("drivers")
+      .update({ [field]: value || null })
+      .eq("id", id);
+    if (error) setErr(error.message);
+  }
 
   const now = new Date();
 
   return (
-    <div style={{ padding: 24, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div
+      style={{
+        padding: 24,
+        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+      }}
+    >
+      <h1
+        style={{
+          fontSize: 28,
+          fontWeight: 800,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         <span>🚚</span> Driver Reserve Timers
       </h1>
 
       {err && (
-        <div style={{ background: '#fee2e2', color: '#991b1b', padding: 10, borderRadius: 8, marginTop: 12 }}>
+        <div
+          style={{
+            background: "#fee2e2",
+            color: "#991b1b",
+            padding: 10,
+            borderRadius: 8,
+            marginTop: 12,
+          }}
+        >
           {err}
         </div>
       )}
 
-      <div style={{ marginTop: 16, overflow: 'hidden', borderRadius: 16, border: '1px solid #e5e7eb' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ background: '#f3f4f6' }}>
+      <div
+        style={{
+          marginTop: 16,
+          overflow: "hidden",
+          borderRadius: 16,
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ background: "#f3f4f6" }}>
             <tr>
-              <th style={{ textAlign: 'left', padding: 12 }}>Name</th>
-              <th style={{ textAlign: 'left', padding: 12 }}>Location</th>
-              <th style={{ textAlign: 'left', padding: 12 }}>Available Time</th>
-              <th style={{ textAlign: 'left', padding: 12 }}>Reserve</th>
-              <th style={{ textAlign: 'left', padding: 12 }}>Actions</th>
+              <th style={{ textAlign: "left", padding: 12 }}>Name</th>
+              <th style={{ textAlign: "left", padding: 12 }}>Location</th>
+              <th style={{ textAlign: "left", padding: 12 }}>Available Time</th>
+              <th style={{ textAlign: "left", padding: 12 }}>Reserve</th>
+              <th style={{ textAlign: "left", padding: 12 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={5} style={{ padding: 16, color: '#6b7280' }}>Loading…</td></tr>
+              <tr>
+                <td colSpan={5} style={{ padding: 16, color: "#6b7280" }}>
+                  Loading…
+                </td>
+              </tr>
             )}
             {!loading && drivers.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 16, color: '#6b7280' }}>No drivers found. Add rows in Supabase → Table Editor → drivers.</td></tr>
+              <tr>
+                <td colSpan={5} style={{ padding: 16, color: "#6b7280" }}>
+                  No drivers found. Add rows in Supabase → Table Editor →
+                  drivers.
+                </td>
+              </tr>
             )}
             {drivers.map((d) => {
               const until = d.reserve_until ? new Date(d.reserve_until) : null;
               const msLeft = until ? until.getTime() - now.getTime() : 0;
               const active = !!until && msLeft > 0;
               return (
-                <tr key={d.id} style={{ borderTop: '1px solid #e5e7eb' }}>
+                <tr key={d.id} style={{ borderTop: "1px solid #e5e7eb" }}>
                   <td style={{ padding: 12, fontWeight: 600 }}>{d.name}</td>
                   <td style={{ padding: 12 }}>
                     <input
-                      defaultValue={d.location ?? ''}
-                      onBlur={(e) => updateField(d.id, 'location', e.target.value)}
+                      defaultValue={d.location ?? ""}
+                      onBlur={(e) =>
+                        updateField(d.id, "location", e.target.value)
+                      }
                       placeholder="City, ST | ZIP"
-                      style={{ width: 220, padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }}
+                      style={{
+                        width: 220,
+                        padding: 8,
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 8,
+                      }}
                     />
                   </td>
                   <td style={{ padding: 12 }}>
                     <input
-                      defaultValue={d.available_time ? d.available_time.slice(0, 16).replace('T', ' ') : ''}
-                      onBlur={(e) => updateField(d.id, 'available_time', e.target.value)}
-                      placeholder="YYYY-MM-DD HH:mm"
-                      style={{ width: 180, padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }}
+                      defaultValue={d.available_time ?? ""}
+                      onBlur={(e) =>
+                        updateField(d.id, "available_time", e.target.value)
+                      }
+                      placeholder="Any text (e.g. 10/23 8am)"
+                      style={{
+                        width: 180,
+                        padding: 8,
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 8,
+                      }}
                     />
                   </td>
                   <td style={{ padding: 12 }}>
                     {active ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#ecfdf5', color: '#065f46', padding: '4px 10px', borderRadius: 999 }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: "#ecfdf5",
+                          color: "#065f46",
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                        }}
+                      >
                         ● {fmtTimeLeft(msLeft)}
                       </span>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>—</span>
+                      <span style={{ color: "#9ca3af" }}>—</span>
                     )}
                   </td>
                   <td style={{ padding: 12 }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      <button onClick={() => reservePrompt(d.id)} style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#111827', color: 'white' }}>Reserve…</button>
-                      <button onClick={() => resetReserve(d.id)} style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#dc2626', color: 'white' }}>Reset</button>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 8,
+                      }}
+                    >
+                      <button
+                        onClick={() => reservePrompt(d.id)}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 10,
+                          border: "1px solid #e5e7eb",
+                          background: "#111827",
+                          color: "white",
+                        }}
+                      >
+                        Reserve…
+                      </button>
+                      <button
+                        onClick={() => resetReserve(d.id)}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 10,
+                          border: "1px solid #e5e7eb",
+                          background: "#dc2626",
+                          color: "white",
+                        }}
+                      >
+                        Reset
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -194,16 +283,3 @@ export default function DriverReserves() {
     </div>
   );
 }
-
-/*
-If you still don't see drivers:
-1) Ensure URL & anon key match this project.
-2) Run these policies (SQL Editor):
-
-alter table public.drivers enable row level security;
-create policy if not exists "drivers anon read" on public.drivers for select using (true);
-create policy if not exists "drivers anon write" on public.drivers for update using (true);
-
-3) Seed 4 drivers if table is empty:
-insert into public.drivers (name) values ('Driver 1'),('Driver 2'),('Driver 3'),('Driver 4');
-*/
