@@ -56,7 +56,9 @@ export default function DriverReserves() {
           setDrivers((prev) => {
             const next = [...prev];
             if (payload.eventType === "DELETE") {
-              const idx = next.findIndex((d) => d.id === (payload.old as any)?.id);
+              const idx = next.findIndex(
+                (d) => d.id === (payload.old as any)?.id
+              );
               if (idx !== -1) next.splice(idx, 1);
               return next;
             }
@@ -87,7 +89,9 @@ export default function DriverReserves() {
     if (!target) return;
     const now = new Date();
     const base = target.reserve_until ? new Date(target.reserve_until) : now;
-    const until = new Date(Math.max(base.getTime(), now.getTime()) + minutes * 60_000);
+    const until = new Date(
+      Math.max(base.getTime(), now.getTime()) + minutes * 60_000
+    );
     const { error } = await supabase
       .from("drivers")
       .update({ reserve_until: until.toISOString() })
@@ -212,7 +216,7 @@ export default function DriverReserves() {
                       onBlur={(e) =>
                         updateField(d.id, "available_time", e.target.value)
                       }
-                      placeholder="Any text (e.g. 10/23 8am)"
+                      placeholder="Any text (e.g. Monday 8am)"
                       style={{
                         width: 180,
                         padding: 8,
