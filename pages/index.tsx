@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
@@ -33,12 +33,49 @@ function fmtTimeLeft(msLeft: number) {
   return `${m}:${ss.toString().padStart(2, "0")}`;
 }
 
+type Theme = "light" | "dark";
+
 export default function DriverReserves() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [, setTick] = useState(0); // local ticker for countdown
   const now = new Date();
+
+  // Theme
+  const [theme, setTheme] = useState<Theme>("light");
+  useEffect(() => {
+    const saved = (localStorage.getItem("driver_theme") as Theme) || null;
+    if (saved) setTheme(saved);
+    else {
+      // если у пользователя темная система — уважаем
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        setTheme("dark");
+      }
+    }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("driver_theme", theme);
+  }, [theme]);
+  const colors = useMemo(() => {
+    const isDark = theme === "dark";
+    return {
+      pageBg: isDark ? "#0f172a" : "#ffffff",
+      text: isDark ? "#e5e7eb" : "#111827",
+      subtext: isDark ? "#94a3b8" : "#6b7280",
+      panelBorder: isDark ? "#233145" : "#e5e7eb",
+      headerBg: isDark ? "#111827" : "#f3f4f6",
+      dangerBg: isDark ? "#3f1d1d" : "#fee2e2",
+      dangerText: isDark ? "#fecaca" : "#991b1b",
+      successBg: isDark ? "#06312a" : "#ecfdf5",
+      successText: isDark ? "#34d399" : "#065f46",
+      cardBg: isDark ? "#0b1220" : "#ffffff",
+      softBg: isDark ? "#0b1220" : "#f9fafb",
+      btnPrimaryBg: isDark ? "#1f2937" : "#111827",
+      btnPrimaryText: "#ffffff",
+      btnGhostBorder: isDark ? "#374151" : "#e5e7eb",
+    };
+  }, [theme]);
 
   // Reserve modal
   const [reserveOpen, setReserveOpen] = useState(false);
@@ -51,6 +88,13 @@ export default function DriverReserves() {
   const [profileDriver, setProfileDriver] = useState<Driver | null>(null);
   const [notes, setNotes] = useState<DriverNote[]>([]);
   const [newNote, setNewNote] = useState("");
+
+  // UI toasts
+  const [toast, setToast] = useState<string | null>(null);
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 1800);
+  }
 
   /* ticking */
   useEffect(() => {
@@ -195,21 +239,90 @@ export default function DriverReserves() {
     }
   }
 
+  /* copy update */
+  async function copyUpdate() {
+    const lines = drivers.map((d) => {
+      const name = d.name?.trim() ?? "";
+      const loc = (d.location ?? "").toUpperCase();
+      const avail = (d.available_time ?? "").trim() || "ava now";
+      const parts = [name, loc, avail].filter(Boolean);
+      // "Name // LOCATION AVAILABLE"
+      return `${parts[0]} // ${parts.slice(1).join(" ")}`.replace(/\s+/g, " ").trim();
+    });
+    const text = lines.join("\n\n");
+    await navigator.clipboard.writeText(text);
+    showToast("Copied update to clipboard");
+  }
+
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
-        <span>🚚</span> Driver Reserve Timers
-      </h1>
+    <div
+      style={{
+        padding: 24,
+        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+        background: colors.pageBg,
+        color: colors.text,
+        minHeight: "100vh",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
+          <span>🚚</span> Driver Reserve Timers
+        </h1>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 10,
+              border: `1px solid ${colors.btnGhostBorder}`,
+              background: colors.cardBg,
+              color: colors.text,
+            }}
+          >
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+          </button>
+          <button
+            onClick={copyUpdate}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 10,
+              border: `1px solid ${colors.btnGhostBorder}`,
+              background: colors.btnPrimaryBg,
+              color: colors.btnPrimaryText,
+            }}
+          >
+            Copy Update
+          </button>
+        </div>
+      </div>
 
       {err && (
-        <div style={{ background: "#fee2e2", color: "#991b1b", padding: 10, borderRadius: 8, marginTop: 12 }}>
+        <div
+          style={{
+            background: colors.dangerBg,
+            color: colors.dangerText,
+            padding: 10,
+            borderRadius: 8,
+            marginTop: 12,
+            border: `1px solid ${colors.panelBorder}`,
+          }}
+        >
           {err}
         </div>
       )}
 
-      <div style={{ marginTop: 16, overflow: "hidden", borderRadius: 16, border: "1px solid #e5e7eb" }}>
+      <div
+        style={{
+          marginTop: 16,
+          overflow: "hidden",
+          borderRadius: 16,
+          border: `1px solid ${colors.panelBorder}`,
+          background: colors.cardBg,
+        }}
+      >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "#f3f4f6" }}>
+          <thead style={{ background: colors.headerBg }}>
             <tr>
               <th style={{ textAlign: "left", padding: 12 }}>Name</th>
               <th style={{ textAlign: "left", padding: 12 }}>Location</th>
@@ -220,19 +333,27 @@ export default function DriverReserves() {
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={5} style={{ padding: 16, color: "#6b7280" }}>Loading…</td></tr>
+              <tr>
+                <td colSpan={5} style={{ padding: 16, color: colors.subtext }}>
+                  Loading…
+                </td>
+              </tr>
             )}
             {!loading && drivers.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 16, color: "#6b7280" }}>No drivers found.</td></tr>
+              <tr>
+                <td colSpan={5} style={{ padding: 16, color: colors.subtext }}>
+                  No drivers found.
+                </td>
+              </tr>
             )}
 
             {drivers.map((d) => {
               const until = d.reserve_until ? new Date(d.reserve_until) : null;
-              const msLeft = until ? until.getTime() - now.getTime() : 0;
+              const msLeft = until ? until.getTime() - new Date().getTime() : 0;
               const active = !!until && msLeft > 0;
 
               return (
-                <tr key={d.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                <tr key={d.id} style={{ borderTop: `1px solid ${colors.panelBorder}` }}>
                   <td style={{ padding: 12, fontWeight: 600 }}>{d.name}</td>
 
                   <td style={{ padding: 12 }}>
@@ -240,7 +361,14 @@ export default function DriverReserves() {
                       defaultValue={d.location ?? ""}
                       onBlur={(e) => updateField(d.id, "location", e.target.value)}
                       placeholder="City, ST | ZIP"
-                      style={{ width: 220, padding: 8, border: "1px solid #e5e7eb", borderRadius: 8 }}
+                      style={{
+                        width: 220,
+                        padding: 8,
+                        border: `1px solid ${colors.panelBorder}`,
+                        borderRadius: 8,
+                        background: colors.cardBg,
+                        color: colors.text,
+                      }}
                     />
                   </td>
 
@@ -249,17 +377,34 @@ export default function DriverReserves() {
                       defaultValue={d.available_time ?? ""}
                       onBlur={(e) => updateField(d.id, "available_time", e.target.value)}
                       placeholder="Any text"
-                      style={{ width: 180, padding: 8, border: "1px solid #e5e7eb", borderRadius: 8 }}
+                      style={{
+                        width: 180,
+                        padding: 8,
+                        border: `1px solid ${colors.panelBorder}`,
+                        borderRadius: 8,
+                        background: colors.cardBg,
+                        color: colors.text,
+                      }}
                     />
                   </td>
 
                   <td style={{ padding: 12 }}>
                     {active ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#ecfdf5", color: "#065f46", padding: "4px 10px", borderRadius: 999 }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: colors.successBg,
+                          color: colors.successText,
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                        }}
+                      >
                         ● {fmtTimeLeft(msLeft)}
                       </span>
                     ) : (
-                      <span style={{ color: "#9ca3af" }}>—</span>
+                      <span style={{ color: colors.subtext }}>—</span>
                     )}
                   </td>
 
@@ -267,19 +412,37 @@ export default function DriverReserves() {
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       <button
                         onClick={() => openReserve(d)}
-                        style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#111827", color: "white" }}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 10,
+                          border: `1px solid ${colors.btnGhostBorder}`,
+                          background: colors.btnPrimaryBg,
+                          color: colors.btnPrimaryText,
+                        }}
                       >
                         Reserve…
                       </button>
                       <button
                         onClick={() => openProfile(d)}
-                        style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #e5e7eb" }}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 10,
+                          border: `1px solid ${colors.btnGhostBorder}`,
+                          background: colors.cardBg,
+                          color: colors.text,
+                        }}
                       >
                         Profile
                       </button>
                       <button
                         onClick={() => resetReserve(d.id)}
-                        style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#dc2626", color: "white" }}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 10,
+                          border: `1px solid ${colors.btnGhostBorder}`,
+                          background: "#dc2626",
+                          color: "#ffffff",
+                        }}
                       >
                         Reset
                       </button>
@@ -290,14 +453,14 @@ export default function DriverReserves() {
                       <div
                         style={{
                           marginTop: 8,
-                          background: "#f9fafb",
-                          border: "1px solid #e5e7eb",
+                          background: colors.softBg,
+                          border: `1px solid ${colors.panelBorder}`,
                           borderRadius: 8,
                           padding: "8px 10px",
                           maxWidth: 420,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+                        <div style={{ fontSize: 12, color: colors.subtext, marginBottom: 4 }}>
                           Note for this reserve
                           {d.reserve_started_at
                             ? ` • ${new Date(d.reserve_started_at).toLocaleString()}`
@@ -314,39 +477,94 @@ export default function DriverReserves() {
         </table>
       </div>
 
+      {/* toast */}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 16,
+            right: 16,
+            background: colors.cardBg,
+            border: `1px solid ${colors.panelBorder}`,
+            color: colors.text,
+            borderRadius: 10,
+            padding: "8px 12px",
+            boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
+          }}
+        >
+          {toast}
+        </div>
+      )}
+
       {/* Reserve modal */}
       {reserveOpen && reserveDriver && (
         <div style={overlayStyle}>
-          <div style={modalStyle}>
+          <div style={{ ...modalStyle, background: colors.cardBg, color: colors.text, border: `1px solid ${colors.panelBorder}` }}>
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
               Reserve — {reserveDriver.name}
             </h3>
 
             <div style={{ marginTop: 12 }}>
-              <label style={{ display: "block", fontSize: 12, color: "#6b7280" }}>Minutes</label>
+              <label style={{ display: "block", fontSize: 12, color: colors.subtext }}>Minutes</label>
               <input
                 type="number"
                 min={1}
                 value={reserveMinutes}
                 onChange={(e) => setReserveMinutes(e.target.value)}
-                style={{ width: "100%", padding: 8, border: "1px solid #e5e7eb", borderRadius: 8 }}
+                style={{
+                  width: "100%",
+                  padding: 8,
+                  border: `1px solid ${colors.panelBorder}`,
+                  borderRadius: 8,
+                  background: colors.cardBg,
+                  color: colors.text,
+                }}
               />
             </div>
 
             <div style={{ marginTop: 12 }}>
-              <label style={{ display: "block", fontSize: 12, color: "#6b7280" }}>Note (optional)</label>
+              <label style={{ display: "block", fontSize: 12, color: colors.subtext }}>Note (optional)</label>
               <textarea
                 rows={4}
                 placeholder="Anything to remember…"
                 value={reserveNote}
                 onChange={(e) => setReserveNote(e.target.value)}
-                style={{ width: "100%", padding: 8, border: "1px solid #e5e7eb", borderRadius: 8 }}
+                style={{
+                  width: "100%",
+                  padding: 8,
+                  border: `1px solid ${colors.panelBorder}`,
+                  borderRadius: 8,
+                  background: colors.cardBg,
+                  color: colors.text,
+                }}
               />
             </div>
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
-              <button onClick={() => setReserveOpen(false)} style={btnGhost}>Cancel</button>
-              <button onClick={confirmReserve} style={btnPrimary}>Start</button>
+              <button
+                onClick={() => setReserveOpen(false)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: `1px solid ${colors.btnGhostBorder}`,
+                  background: colors.cardBg,
+                  color: colors.text,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReserve}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: `1px solid ${colors.btnGhostBorder}`,
+                  background: colors.btnPrimaryBg,
+                  color: colors.btnPrimaryText,
+                }}
+              >
+                Start
+              </button>
             </div>
           </div>
         </div>
@@ -355,21 +573,39 @@ export default function DriverReserves() {
       {/* Profile (notes) modal */}
       {profileOpen && profileDriver && (
         <div style={overlayStyle}>
-          <div style={modalStyle}>
+          <div style={{ ...modalStyle, background: colors.cardBg, color: colors.text, border: `1px solid ${colors.panelBorder}` }}>
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
               Profile — {profileDriver.name}
             </h3>
 
             <div style={{ marginTop: 12 }}>
-              <label style={{ display: "block", fontSize: 12, color: "#6b7280" }}>Add note</label>
+              <label style={{ display: "block", fontSize: 12, color: colors.subtext }}>Add note</label>
               <div style={{ display: "flex", gap: 8 }}>
                 <input
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   placeholder="Type a note…"
-                  style={{ flex: 1, padding: 8, border: "1px solid #e5e7eb", borderRadius: 8 }}
+                  style={{
+                    flex: 1,
+                    padding: 8,
+                    border: `1px solid ${colors.panelBorder}`,
+                    borderRadius: 8,
+                    background: colors.cardBg,
+                    color: colors.text,
+                  }}
                 />
-                <button onClick={addProfileNote} style={btnPrimary}>Save</button>
+                <button
+                  onClick={addProfileNote}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 10,
+                    border: `1px solid ${colors.btnGhostBorder}`,
+                    background: colors.btnPrimaryBg,
+                    color: colors.btnPrimaryText,
+                  }}
+                >
+                  Save
+                </button>
               </div>
             </div>
 
@@ -378,16 +614,16 @@ export default function DriverReserves() {
                 marginTop: 16,
                 maxHeight: 280,
                 overflowY: "auto",
-                border: "1px solid #e5e7eb",
+                border: `1px solid ${colors.panelBorder}`,
                 borderRadius: 8,
               }}
             >
               {notes.length === 0 ? (
-                <div style={{ padding: 12, color: "#6b7280" }}>No notes yet.</div>
+                <div style={{ padding: 12, color: colors.subtext }}>No notes yet.</div>
               ) : (
                 notes.map((n) => (
-                  <div key={n.id} style={{ padding: 12, borderTop: "1px solid #f3f4f6" }}>
-                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+                  <div key={n.id} style={{ padding: 12, borderTop: `1px solid ${colors.panelBorder}` }}>
+                    <div style={{ fontSize: 12, color: colors.subtext, marginBottom: 4 }}>
                       {new Date(n.created_at).toLocaleString()}
                     </div>
                     <div>{n.body}</div>
@@ -397,7 +633,18 @@ export default function DriverReserves() {
             </div>
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
-              <button onClick={() => setProfileOpen(false)} style={btnPrimary}>Close</button>
+              <button
+                onClick={() => setProfileOpen(false)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: `1px solid ${colors.btnGhostBorder}`,
+                  background: colors.btnPrimaryBg,
+                  color: colors.btnPrimaryText,
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -425,19 +672,4 @@ const modalStyle: React.CSSProperties = {
   borderRadius: 16,
   padding: 16,
   boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "8px 12px",
-  borderRadius: 10,
-  border: "1px solid #111827",
-  background: "#111827",
-  color: "white",
-};
-
-const btnGhost: React.CSSProperties = {
-  padding: "8px 12px",
-  borderRadius: 10,
-  border: "1px solid #e5e7eb",
-  background: "white",
 };
