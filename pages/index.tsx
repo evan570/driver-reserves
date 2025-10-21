@@ -11,6 +11,8 @@ type Driver = {
   location: string | null;
   available_time: string | null;   // теперь текст
   reserve_until: string | null;    // ISO
+  reserve_started_at?: string | null;   // 👈 добавили
+  reserve_note?: string | null;          // 👈 добавили
   created_at?: string;
 };
 
