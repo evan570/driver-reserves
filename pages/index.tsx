@@ -98,21 +98,22 @@ export default function DriverReserves() {
     if (error) setErr(error.message);
   }
 
-  async function updateField(id: string, field: "location" | "available_time", value: string) {
-    // now "available_time" is a plain text column; save as-is
-    const patch: any = { [field]: value || null };
-    const { error } = await supabase.from("drivers").update(patch).eq("id", id);
-    if (error) setErr(error.message);
-  };
-    if (field === "available_time" && value) {
-      try { patch[field] = new Date(value.replace(" ", "T")).toISOString(); }
-      catch { patch[field] = value; }
-    } else {
-      patch[field] = value || null;
-    }
-    const { error } = await supabase.from("drivers").update(patch).eq("id", id);
-    if (error) setErr(error.message);
-  }
+  async function updateField(
+  id: string,
+  field: "location" | "available_time",
+  value: string
+) {
+  // available_time теперь текст — сохраняем как есть
+  const patch: any = {};
+  patch[field] = value || null;
+
+  const { error } = await supabase
+    .from("drivers")
+    .update(patch)
+    .eq("id", id);
+
+  if (error) setErr(error.message);
+}
 
   const now = new Date();
 
