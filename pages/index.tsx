@@ -8,12 +8,13 @@ const supabase = createClient(supabaseUrl, supabaseAnon);
 /** DB types */
 type Driver = {
   id: string;
+  unit_no?: string | null;           // 👈 новый столбец
   name: string;
   location: string | null;
   available_time: string | null;     // plain text
   reserve_until: string | null;      // ISO
-  reserve_started_at?: string | null; // ISO (when current reserve started)
-  reserve_note?: string | null;       // last/current note for the active reserve
+  reserve_started_at?: string | null;
+  reserve_note?: string | null;
   created_at?: string;
 };
 
@@ -39,7 +40,7 @@ export default function DriverReserves() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [, setTick] = useState(0); // local ticker for countdown
+  const [, setTick] = useState(0);
   const now = new Date();
 
   // Theme
@@ -47,16 +48,14 @@ export default function DriverReserves() {
   useEffect(() => {
     const saved = (localStorage.getItem("driver_theme") as Theme) || null;
     if (saved) setTheme(saved);
-    else {
-      // если у пользователя темная система — уважаем
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        setTheme("dark");
-      }
+    else if (window.matchMedia?.("(prefers-color-scheme: dark)")) {
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) setTheme("dark");
     }
   }, []);
   useEffect(() => {
     localStorage.setItem("driver_theme", theme);
   }, [theme]);
+
   const colors = useMemo(() => {
     const isDark = theme === "dark";
     return {
@@ -159,7 +158,6 @@ export default function DriverReserves() {
     const minutes = parseInt(reserveMinutes || "15", 10);
     if (!Number.isFinite(minutes) || minutes <= 0) return;
 
-    // compute new until time using existing until as base
     const target = drivers.find((d) => d.id === reserveDriver.id);
     if (!target) return;
 
@@ -167,7 +165,6 @@ export default function DriverReserves() {
     const base = target.reserve_until ? new Date(target.reserve_until) : nowLocal;
     const until = new Date(Math.max(base.getTime(), nowLocal.getTime()) + minutes * 60_000);
 
-    // 1) update current reserve fields on driver
     const { error } = await supabase
       .from("drivers")
       .update({
@@ -179,10 +176,8 @@ export default function DriverReserves() {
 
     if (error) {
       setErr(error.message);
-      return;
     }
 
-    // 2) add to notes history if provided
     if (reserveNote.trim()) {
       await supabase.from("driver_notes").insert({
         driver_id: reserveDriver.id,
@@ -203,7 +198,7 @@ export default function DriverReserves() {
 
   async function updateField(
     id: string,
-    field: "location" | "available_time",
+    field: "unit_no" | "location" | "available_time", // 👈 добавили unit_no
     value: string
   ) {
     const { error } = await supabase
@@ -239,14 +234,13 @@ export default function DriverReserves() {
     }
   }
 
-  /* copy update */
+  /* copy update — unit_no НЕ используется */
   async function copyUpdate() {
     const lines = drivers.map((d) => {
       const name = d.name?.trim() ?? "";
       const loc = (d.location ?? "").toUpperCase();
       const avail = (d.available_time ?? "").trim() || "ava now";
       const parts = [name, loc, avail].filter(Boolean);
-      // "Name // LOCATION AVAILABLE"
       return `${parts[0]} // ${parts.slice(1).join(" ")}`.replace(/\s+/g, " ").trim();
     });
     const text = lines.join("\n\n");
@@ -324,6 +318,7 @@ export default function DriverReserves() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: colors.headerBg }}>
             <tr>
+              <th style={{ textAlign: "left", padding: 12, width: 90 }}>Unit</th> {/* 👈 новый столбец */}
               <th style={{ textAlign: "left", padding: 12 }}>Name</th>
               <th style={{ textAlign: "left", padding: 12 }}>Location</th>
               <th style={{ textAlign: "left", padding: 12 }}>Available Time</th>
@@ -334,14 +329,14 @@ export default function DriverReserves() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} style={{ padding: 16, color: colors.subtext }}>
+                <td colSpan={6} style={{ padding: 16, color: colors.subtext }}>
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && drivers.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: 16, color: colors.subtext }}>
+                <td colSpan={6} style={{ padding: 16, color: colors.subtext }}>
                   No drivers found.
                 </td>
               </tr>
@@ -354,8 +349,27 @@ export default function DriverReserves() {
 
               return (
                 <tr key={d.id} style={{ borderTop: `1px solid ${colors.panelBorder}` }}>
+                  {/* Unit */}
+                  <td style={{ padding: 12 }}>
+                    <input
+                      defaultValue={d.unit_no ?? ""}
+                      onBlur={(e) => updateField(d.id, "unit_no", e.target.value)}
+                      placeholder="1401"
+                      style={{
+                        width: 80,
+                        padding: 8,
+                        border: `1px solid ${colors.panelBorder}`,
+                        borderRadius: 8,
+                        background: colors.cardBg,
+                        color: colors.text,
+                      }}
+                    />
+                  </td>
+
+                  {/* Name */}
                   <td style={{ padding: 12, fontWeight: 600 }}>{d.name}</td>
 
+                  {/* Location */}
                   <td style={{ padding: 12 }}>
                     <input
                       defaultValue={d.location ?? ""}
@@ -372,6 +386,7 @@ export default function DriverReserves() {
                     />
                   </td>
 
+                  {/* Available */}
                   <td style={{ padding: 12 }}>
                     <input
                       defaultValue={d.available_time ?? ""}
@@ -388,6 +403,7 @@ export default function DriverReserves() {
                     />
                   </td>
 
+                  {/* Reserve */}
                   <td style={{ padding: 12 }}>
                     {active ? (
                       <span
@@ -408,6 +424,7 @@ export default function DriverReserves() {
                     )}
                   </td>
 
+                  {/* Actions */}
                   <td style={{ padding: 12 }}>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       <button
